@@ -1,0 +1,98 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: document-chat-ai
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 15MB
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: llama3.1:8b
+          temperature: 0.1
+          top-p: 0.9
+          num-ctx: 4096
+      embedding:
+        options:
+          model: nomic-embed-text
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 60000
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# Application specific configuration
+app:
+  upload:
+    directory: ./uploads
+    allowed-types:
+      - application/pdf
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/msword
+      - application/vnd.openxmlformats-officedocument.presentationml.presentation
+      - application/vnd.ms-powerpoint
+      - text/plain
+    max-files: 3
+    max-file-size-mb: 5
+
+  rag:
+    chunk-size: 1000
+    chunk-overlap: 200
+    similarity-threshold: 0.3
+    top-k: 5
+
+  session:
+    timeout-minutes: 30
+
+  logging:
+    conversations-file: ./logs/conversations.log
+    user-info-file: ./logs/user-info.txt
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.docuchat: DEBUG
+    org.springframework.ai: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ./logs/application.log
+    max-size: 10MB
+    max-history: 30
+
+# Swagger/OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
