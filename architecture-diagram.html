@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Chat — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #f0f4ff;
+    --surface:     #ffffff;
+    --fe-color:    #0369a1;
+    --fe-bg:       #e0f2fe;
+    --fe-border:   #7dd3fc;
+    --fe-chip-bg:  #f0f9ff;
+    --fe-chip-bd:  #bae6fd;
+    --be-color:    #6d28d9;
+    --be-bg:       #ede9fe;
+    --be-border:   #c4b5fd;
+    --be-chip-bg:  #f5f3ff;
+    --be-chip-bd:  #ddd6fe;
+    --redis-color: #dc2626;
+    --redis-bg:    #fef2f2;
+    --redis-bd:    #fca5a5;
+    --ollama-color:#16a34a;
+    --ollama-bg:   #f0fdf4;
+    --ollama-bd:   #86efac;
+    --stor-color:  #b45309;
+    --stor-bg:     #fffbeb;
+    --stor-bd:     #fcd34d;
+    --text-h:      #0f172a;
+    --text-body:   #334155;
+    --text-muted:  #64748b;
+    --text-dim:    #94a3b8;
+    --ws-color:    #dc2626;
+    --http-color:  #0369a1;
+    --arrow:       #94a3b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-h);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 28px 56px;
+    background-image:
+      radial-gradient(ellipse 70% 50% at 15% 5%,  rgba(3,105,161,0.07)  0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 85% 90%, rgba(109,40,217,0.06) 0%, transparent 60%);
+  }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    margin-bottom: 44px;
+  }
+
+  header .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  header h1 {
+    font-size: 34px;
+    font-weight: 800;
+    color: var(--text-h);
+    letter-spacing: -0.5px;
+  }
+
+  header h1 span {
+    background: linear-gradient(90deg, #0369a1, #6d28d9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ── DIAGRAM ── */
+  .diagram {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── LAYER ── */
+  .layer {
+    width: 100%;
+    border-radius: 14px;
+    padding: 22px 22px 22px;
+    position: relative;
+    border: 1.5px solid;
+  }
+
+  .layer-fe {
+    background: var(--fe-bg);
+    border-color: var(--fe-border);
+    box-shadow: 0 2px 16px rgba(3,105,161,0.08), 0 0 0 4px rgba(3,105,161,0.05);
+  }
+
+  .layer-be {
+    background: var(--be-bg);
+    border-color: var(--be-border);
+    box-shadow: 0 2px 16px rgba(109,40,217,0.08), 0 0 0 4px rgba(109,40,217,0.05);
+  }
+
+  .layer-pill {
+    position: absolute;
+    top: -15px;
+    left: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 1.5px solid;
+  }
+
+  .layer-fe .layer-pill {
+    background: #fff;
+    color: var(--fe-color);
+    border-color: var(--fe-border);
+  }
+
+  .layer-be .layer-pill {
+    background: #fff;
+    color: var(--be-color);
+    border-color: var(--be-border);
+  }
+
+  .layer-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .layer-fe .layer-title { color: var(--fe-color); }
+  .layer-be .layer-title { color: var(--be-color); }
+
+  .title-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .layer-fe .title-dot { background: var(--fe-color); }
+  .layer-be .title-dot { background: var(--be-color); }
+
+  /* ── CHIP ROW ── */
+  .chip-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .chip-row:last-child { margin-bottom: 0; }
+
+  .chip {
+    flex: 1;
+    min-width: 150px;
+    border-radius: 10px;
+    padding: 13px 14px 12px;
+    border: 1.5px solid;
+    position: relative;
+    background: var(--surface);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .chip-fe {
+    background: var(--fe-chip-bg);
+    border-color: var(--fe-chip-bd);
+  }
+
+  .chip-be {
+    background: var(--be-chip-bg);
+    border-color: var(--be-chip-bd);
+  }
+
+  .chip-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-h);
+    margin-bottom: 5px;
+  }
+
+  .chip-desc {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .chip-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .badge-ws   { background: #fee2e2; color: var(--ws-color); }
+  .badge-rest { background: #dbeafe; color: #1d4ed8; }
+  .badge-rag  { background: #fef9c3; color: #854d0e; }
+
+  /* ── CONNECTOR ── */
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  .conn-vline {
+    width: 2px;
+    height: 18px;
+    background: var(--arrow);
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .conn-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 6px 18px;
+    margin: 6px 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    color: var(--text-muted);
+  }
+
+  .conn-http { color: var(--http-color); font-weight: 600; }
+  .conn-ws   { color: var(--ws-color);   font-weight: 600; }
+  .conn-sep  { color: #cbd5e1; }
+
+  /* ── BRANCH SVG ── */
+  .branch-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 4px 0 6px;
+  }
+
+  .branch-svg {
+    width: 100%;
+    max-width: 880px;
+    height: 52px;
+    overflow: visible;
+  }
+
+  /* ── INFRA ROW ── */
+  .infra-row {
+    display: flex;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .infra-card {
+    flex: 1;
+    border-radius: 14px;
+    padding: 18px 16px 16px;
+    border: 1.5px solid;
+    position: relative;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+
+  .infra-redis   { background: var(--redis-bg);  border-color: var(--redis-bd); }
+  .infra-ollama  { background: var(--ollama-bg); border-color: var(--ollama-bd); }
+  .infra-storage { background: var(--stor-bg);   border-color: var(--stor-bd); }
+
+  .infra-tag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .tag-redis  { background: #fecaca; color: var(--redis-color); }
+  .tag-llm    { background: #bbf7d0; color: var(--ollama-color); }
+  .tag-fs     { background: #fde68a; color: var(--stor-color); }
+
+  .infra-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .infra-name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .infra-redis   .infra-name { color: var(--redis-color); }
+  .infra-ollama  .infra-name { color: var(--ollama-color); }
+  .infra-storage .infra-name { color: var(--stor-color); }
+
+  .infra-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  /* ── LEGEND ── */
+  .legend {
+    margin-top: 32px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 14px 20px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .legend-dot {
+    width: 9px; height: 9px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ── FOOTER CREDIT ── */
+  .credit {
+    margin-top: 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* pulse dot */
+  .pulse-dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--ws-color);
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.3; transform:scale(0.6); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">System Architecture</div>
+  <h1>RAG <span>Chat Application</span></h1>
+</header>
+
+<div class="diagram">
+
+  <!-- ── FRONTEND ── -->
+  <div class="layer layer-fe">
+    <span class="layer-pill">Layer 01 · Frontend</span>
+    <div class="layer-title">
+      <span class="title-dot"></span>
+      React — Client Layer
+    </div>
+    <div class="chip-row">
+      <div class="chip chip-fe">
+        <div class="chip-name">User Info Form</div>
+        <div class="chip-desc">Session identity &amp;<br>user registration</div>
+      </div>
+      <div class="chip chip-fe">
+        <div class="chip-name">Doc Upload</div>
+        <div class="chip-desc">File picker, drag-drop,<br>multipart upload</div>
+      </div>
+      <div class="chip chip-fe">
+        <span class="chip-badge badge-ws"><span class="pulse-dot"></span>WS</span>
+        <div class="chip-name">Chat Interface</div>
+        <div class="chip-desc">Real-time messaging<br>via WebSocket</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONNECTOR ── -->
+  <div class="connector">
+    <div class="conn-vline"></div>
+    <div class="conn-pill">
+      <span class="conn-http">HTTP / REST</span>
+      <span class="conn-sep">|</span>
+      <span class="conn-ws"><span class="pulse-dot"></span> WebSocket</span>
+    </div>
+    <div class="conn-vline"></div>
+  </div>
+
+  <!-- ── BACKEND ── -->
+  <div class="layer layer-be">
+    <span class="layer-pill">Layer 02 · Backend</span>
+    <div class="layer-title">
+      <span class="title-dot"></span>
+      Spring Boot — Application Layer
+    </div>
+    <div class="chip-row">
+      <div class="chip chip-be">
+        <span class="chip-badge badge-rest">REST</span>
+        <div class="chip-name">REST APIs</div>
+        <div class="chip-desc">Upload, session &amp;<br>query endpoints</div>
+      </div>
+      <div class="chip chip-be">
+        <span class="chip-badge badge-ws"><span class="pulse-dot"></span>WS</span>
+        <div class="chip-name">WebSocket Handler</div>
+        <div class="chip-desc">Bi-directional stream,<br>message routing</div>
+      </div>
+      <div class="chip chip-be">
+        <span class="chip-badge badge-rag">RAG</span>
+        <div class="chip-name">RAG Service</div>
+        <div class="chip-desc">Retrieval-augmented<br>generation pipeline</div>
+      </div>
+    </div>
+    <div class="chip-row">
+      <div class="chip chip-be">
+        <div class="chip-name">Document Processing</div>
+        <div class="chip-desc">Parse, chunk &amp;<br>embed documents</div>
+      </div>
+      <div class="chip chip-be">
+        <div class="chip-name">Session Service</div>
+        <div class="chip-desc">State management,<br>context window</div>
+      </div>
+      <div class="chip chip-be">
+        <div class="chip-name">Logging Service</div>
+        <div class="chip-desc">Audit trail &amp;<br>observability</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRANCH SVG ── -->
+  <div class="branch-wrap">
+    <svg class="branch-svg" viewBox="0 0 880 52" preserveAspectRatio="xMidYMid meet" fill="none">
+      <line x1="440" y1="0"  x2="440" y2="20" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="147" y1="20" x2="733" y2="20" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="147" y1="20" x2="147" y2="52" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/>
+      <line x1="440" y1="20" x2="440" y2="52" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/>
+      <line x1="733" y1="20" x2="733" y2="52" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/>
+      <polygon points="147,52 142,42 152,42" fill="#94a3b8"/>
+      <polygon points="440,52 435,42 445,42" fill="#94a3b8"/>
+      <polygon points="733,52 728,42 738,42" fill="#94a3b8"/>
+    </svg>
+  </div>
+
+  <!-- ── INFRA ── -->
+  <div class="infra-row">
+
+    <div class="infra-card infra-redis">
+      <span class="infra-tag tag-redis">CACHE · VECTOR</span>
+      <span class="infra-icon">🗄️</span>
+      <div class="infra-name">Redis</div>
+      <div class="infra-sub">
+        Vector Store<br>
+        Session Cache<br>
+        Embedding Index
+      </div>
+    </div>
+
+    <div class="infra-card infra-ollama">
+      <span class="infra-tag tag-llm">LLM</span>
+      <span class="infra-icon">🤖</span>
+      <div class="infra-name">Ollama</div>
+      <div class="infra-sub">
+        Local LLM Runtime<br>
+        Inference Engine<br>
+        Model Serving
+      </div>
+    </div>
+
+    <div class="infra-card infra-storage">
+      <span class="infra-tag tag-fs">STORAGE</span>
+      <span class="infra-icon">📁</span>
+      <div class="infra-name">File Storage</div>
+      <div class="infra-sub">
+        Raw Document Store<br>
+        Upload Persistence<br>
+        Artifact Retention
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── LEGEND ── -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#7dd3fc"></div>Frontend Layer
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#c4b5fd"></div>Backend Layer
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#fca5a5"></div>Redis · Vector Store
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#86efac"></div>Ollama · LLM
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#fcd34d"></div>File Storage
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#fca5a5"></div>WebSocket
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#93c5fd"></div>HTTP / REST
+    </div>
+  </div>
+
+  <div class="credit">RAG Chat Application · System Architecture</div>
+
+</div>
+
+</body>
+</html>
